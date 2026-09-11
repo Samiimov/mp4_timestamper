@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mp4-timestamper"
+version = "0.2.0"
+description = "Turn an MP4's spoken content into a timestamped topic outline."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["faster-whisper>=1.1,<2", "pydantic>=2,<3"]
+
+[project.scripts]
+mp4-timestamper = "mp4_timestamper.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mp4_timestamper*"]
