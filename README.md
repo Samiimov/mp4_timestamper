@@ -40,6 +40,32 @@ mp4-timestamper "video.mp4"
 
 Writes `video.topics.txt` beside the input. `python -m mp4_timestamper` also works.
 
+### Process a folder
+
+Pass a full folder path to process all MP4 files directly inside it:
+
+```bash
+mp4-timestamper "/home/sami/Videos/My videos" --model-dir .models
+```
+
+Each video gets its own outline beside it, for example `lecture.mp4` becomes `lecture.topics.txt`. Files are processed sequentially in filename order; `.mp4` and `.MP4` are both accepted. Subfolders are not scanned.
+
+For folder input, `-o` and `--save-transcript` accept **existing directories**:
+
+```bash
+mp4-timestamper "/home/sami/Videos" \
+  -o "/home/sami/Documents/outlines" \
+  --save-transcript "/home/sami/Documents/transcripts" \
+  --model-dir .models
+
+# Create just the local transcripts for a folder.
+mp4-timestamper "/home/sami/Videos" --transcribe-only --model-dir .models
+```
+
+Existing outlines (or JSON outputs with `--transcribe-only`) are skipped unless `--force` is supplied, so you can rerun a folder without repeating completed videos. A failed video is reported and processing continues. The final summary lists processed, skipped, and failed counts; the exit code is 1 if any video failed. Conflicting output names are rejected before processing begins. Existing optional saved transcripts are also protected; use `--force` to replace them or `--from-transcript` to reuse one.
+
+### More options
+
 ```bash
 # Save the transcript before outlining so it survives a Codex failure.
 mp4-timestamper "lecture.mp4" --save-transcript lecture.transcript.json

@@ -9,3 +9,4 @@ dist/
 *.transcript.json
 *.topics.txt
 .models/
+poetry.lock
