@@ -64,6 +64,30 @@ mp4-timestamper "/home/sami/Videos" --transcribe-only --model-dir .models
 
 Existing outlines (or JSON outputs with `--transcribe-only`) are skipped unless `--force` is supplied, so you can rerun a folder without repeating completed videos. A failed video is reported and processing continues. The final summary lists processed, skipped, and failed counts; the exit code is 1 if any video failed. Conflicting output names are rejected before processing begins. Existing optional saved transcripts are also protected; use `--force` to replace them or `--from-transcript` to reuse one.
 
+### Compile topic outlines into one document
+
+Use `--compile` to synthesize existing topic text files into a coherent document:
+
+```bash
+mp4-timestamper --compile "/home/sami/Documents/outlines"
+```
+
+This reads `*.topics.txt` files directly inside that folder and writes `compilation.txt`. Codex creates an overview, groups related topics across videos, and combines overlapping explanations while retaining distinct viewpoints. Each section lists the original video, timestamp, topic title, and outline filename. Every input topic is assigned to a section; source references are added by the app from the original files.
+
+```bash
+# Choose the output file, detail level, and language.
+mp4-timestamper --compile "/home/sami/Documents/outlines" \
+  -o "/home/sami/Documents/study-guide.txt" \
+  --detail detailed --outline-language English
+
+# Include custom filenames such as outline.txt rather than only *.topics.txt.
+mp4-timestamper --compile "/home/sami/Documents/outlines" --topic-pattern "*.txt"
+```
+
+Inputs must use the tool's text format: a `Topic outline: VIDEO` header followed by `HH:MM:SS — Topic title` entries and summaries. Unrelated or malformed matching files cause an error before any Codex request; narrow `--topic-pattern` if needed. Subfolders are not scanned. Earlier compilations with a `Topic compilation:` header are excluded, including the destination when rerunning with `--force`.
+
+Compilation uses your existing Codex login and sends the selected outline text to Codex. It does not need the videos or Whisper and does not transcribe again. `--model`, `--codex-bin`, `--codex-timeout`, `--detail`, and `--outline-language` also apply. Large collections are summarized in stages before the final synthesis, which can condense fine details. Review the summaries against the listed source references when precision matters. Use `--force` to replace an existing compilation; input outlines remain protected.
+
 ### More options
 
 ```bash

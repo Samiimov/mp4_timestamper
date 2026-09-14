@@ -47,6 +47,21 @@ class ChapterSelections(BaseModel):
     chapters: list[ChapterSelection]
 
 
+class CompilationSection(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    title: str
+    summary: str
+    topic_ids: list[int]
+
+
+class TopicCompilation(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    overview: str
+    sections: list[CompilationSection]
+
+
 @dataclass(frozen=True)
 class Topic:
     start: float

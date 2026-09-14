@@ -1,4 +1,4 @@
-"""Generate structured chapters through the user's ChatGPT-authenticated Codex CLI."""
+"""Generate structured documents through the user's ChatGPT-authenticated Codex CLI."""
 
 import json
 import os
@@ -9,7 +9,7 @@ import tempfile
 
 from pydantic import ValidationError
 
-from .models import ChapterSelections, ToolError
+from .models import ChapterSelections, TopicCompilation, ToolError
 
 
 class CodexClient:
@@ -42,11 +42,19 @@ class CodexClient:
     def select_chapters(
         self, instructions: str, content: str, model: str | None = None,
     ) -> ChapterSelections:
+        return self._request(instructions, content, model, ChapterSelections)
+
+    def compile_topics(
+        self, instructions: str, content: str, model: str | None = None,
+    ) -> TopicCompilation:
+        return self._request(instructions, content, model, TopicCompilation)
+
+    def _request(self, instructions, content, model, response_type):
         with tempfile.TemporaryDirectory(prefix="mp4-codex-") as temporary:
             root = Path(temporary)
             schema = root / "schema.json"
             output = root / "chapters.json"
-            schema.write_text(json.dumps(ChapterSelections.model_json_schema()), encoding="utf-8")
+            schema.write_text(json.dumps(response_type.model_json_schema()), encoding="utf-8")
             command = [
                 self.executable, "exec", "--ignore-user-config", "--ephemeral",
                 "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never",
@@ -69,17 +77,17 @@ class CodexClient:
             except subprocess.TimeoutExpired as error:
                 raise ToolError(
                     f"Codex did not finish within {self.timeout} seconds. "
-                    "Retry using your saved transcript or increase --codex-timeout."
+                    "Retry using your saved transcript/topic files or increase --codex-timeout."
                 ) from error
             if result.returncode:
                 detail = result.stderr.strip()[-2000:]
                 raise ToolError(
                     "Codex failed. Check your ChatGPT login, usage limits, connection, and "
-                    "Codex version. You can retry with --from-transcript.\n" + detail
+                    "Codex version, then retry using your saved input files.\n" + detail
                 )
             if not output.is_file():
                 raise ToolError("Codex returned no outline. Update Codex CLI and try again.")
             try:
-                return ChapterSelections.model_validate_json(output.read_text(encoding="utf-8"))
+                return response_type.model_validate_json(output.read_text(encoding="utf-8"))
             except ValidationError as error:
-                raise ToolError("Codex returned an invalid outline. Please retry with --from-transcript.") from error
+                raise ToolError("Codex returned an invalid document. Please retry using your saved input files.") from error

@@ -7,6 +7,7 @@ import tempfile
 from pydantic import ValidationError
 
 from .codex import CodexClient
+from .compilation import discover_outlines, generate_compilation, read_outline, render_compilation
 from .media import transcribe
 from .models import ToolError, Transcript
 from .outline import DETAIL, generate_outline, render_outline
@@ -14,11 +15,11 @@ from .outline import DETAIL, generate_outline, render_outline
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
-        description="Outline an MP4 or a folder of MP4s using local Whisper and your ChatGPT Codex login.",
-        epilog="Audio stays local. Transcript text is sent to Codex and uses your ChatGPT plan allowance.",
+        description="Outline MP4 videos or compile saved topic outlines using your ChatGPT Codex login.",
+        epilog="Audio stays local. Transcript or outline text is sent to Codex and uses your ChatGPT plan allowance.",
     )
     result.add_argument("video", type=Path, nargs="?", help="path to an MP4 video or a folder of MP4 videos")
-    result.add_argument("-o", "--output", type=Path, help="output file, or existing output directory for folder input (default: beside each video)")
+    result.add_argument("-o", "--output", type=Path, help="output file; existing directory for video folders (compilation default: FOLDER/compilation.txt)")
     result.add_argument("--language", help="spoken language code, e.g. en or fi (default: auto-detect)")
     result.add_argument("--outline-language", help="language for topic titles and summaries, e.g. English")
     result.add_argument("--detail", choices=DETAIL, default="balanced")
@@ -32,6 +33,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--transcribe-only", action="store_true", help="save only local transcript JSON; no Codex login required")
     result.add_argument("--save-transcript", type=Path, help="also save transcript JSON: file path for a video, existing directory for folder input")
     result.add_argument("--from-transcript", type=Path, help="reuse a saved transcript instead of an MP4")
+    result.add_argument("--compile", dest="compile_folder", type=Path, help="combine topic text files in this folder into a coherent compilation")
+    result.add_argument("--topic-pattern", default="*.topics.txt", help="filename pattern for --compile (default: *.topics.txt)")
     result.add_argument("--force", action="store_true", help="replace existing output files")
     return result
 
@@ -155,11 +158,25 @@ def process_folder(args, get_client) -> int:
     return 1 if failed else 0
 
 
+def process_compilation(args, get_client) -> int:
+    output = args.output or args.compile_folder / "compilation.txt"
+    files = discover_outlines(args.compile_folder, args.topic_pattern, output)
+    check_output(output, files, args.force)
+    topics = [topic for path in files for topic in read_outline(path)]
+    print(f"Read {len(topics)} topics from {len(files)} outlines.", file=sys.stderr)
+    result = generate_compilation(topics, get_client(), args.model, args.detail, args.outline_language)
+    write_text(output, render_compilation(args.compile_folder, topics, result), args.force)
+    print(f"Saved {len(result.sections)} compilation sections to {output}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     arg_parser = parser()
     args = arg_parser.parse_args(argv)
-    if bool(args.video) == bool(args.from_transcript):
-        arg_parser.error("provide either an MP4 video/folder or --from-transcript, but not both")
+    if sum(bool(value) for value in (args.video, args.from_transcript, args.compile_folder)) != 1:
+        arg_parser.error("provide exactly one input: an MP4 video/folder, --from-transcript, or --compile")
+    if args.compile_folder and (args.transcribe_only or args.save_transcript):
+        arg_parser.error("--compile cannot be combined with --transcribe-only or --save-transcript")
     if args.transcribe_only and (args.from_transcript or args.save_transcript):
         arg_parser.error("--transcribe-only takes a video/folder and optional -o; do not combine it with transcript flags")
     if args.codex_timeout <= 0:
@@ -175,6 +192,8 @@ def main(argv: list[str] | None = None) -> int:
                 client = candidate
             return client
 
+        if args.compile_folder:
+            return process_compilation(args, get_client)
         if args.video and args.video.is_dir():
             return process_folder(args, get_client)
         return process_file(args, get_client)
